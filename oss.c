@@ -5,6 +5,8 @@
 #include <errno.h>
 #include <sys/wait.h>
 #include <sys/ipc.h>
+#include <sys/shm.h> 
+#include <time.h> 
 
 // Process Control Block struct 
 struct PCB {
@@ -12,26 +14,16 @@ struct PCB {
 	pid_t pid; 		// process id of the child 
 	int startSeconds;       // time when it was forked
 	int startNano;		// time when it was forked
-}
+};
 
-// Help menu 
+// Help 
 
-void help() {
-        printf("oss [-h] [-n proc] [-s simul] [-t iter]");
-        printf("\n\t Help Menu \n");
-        printf("     -----------------\n");
-	printf(" -h option: displays help message\n"); 
-	printf(" -n [proc]: number of total children to launch\n"); 
-	printf(" -s [simul]: indicates how many children can run simultaneously\n"); 
-	printf(" -t [timelimit]: bound of time that a child process will be launched for"); 
-}
-
-// Parent and child share common key 
-const int sh_key = 1000
 
 int main(int argc, char **argv) {
+	// Creating key shared b/w child and parent 
+	key_t SH_KEY = ftok(".", 'x'); 
 	// Allocating memory associated with key 
-	int shm_id = shmget(sh_key, sizeof(int) * 10, 0777 | IPC_CREAT);
+	int shm_id = shmget(SH_KEY, sizeof(int) * 10, 0777 | IPC_CREAT);
 	if (shm_id <= 0) {
 		fprintf(stderr, "Shared memory grab failed \n"); 
 		exit(1); 
@@ -39,17 +31,21 @@ int main(int argc, char **argv) {
 	
 	// Associating pointer to shm_id memory 
 	int *shm_ptr = shmat(shm_id, 0, 0); 
-	if (shm_ptr <= 0) {
+	if (shm_ptr == (void *) -1) {
 		fprintf(stderr, "Shared memory attach failed \n"); 
 		exit(1); 
 	}
 
-	
+	// Writing seconds and nanoseconds into the shared memory location 
+	struct timespec res; 
+	clock_gettime(CLOCK_REALTIME, &res); 
+	shm_ptr[0] = res.tv_sec; // Writing the seconds from the time.h struct timespec res
+	shm_ptr[1] = res.tv_nsec; // Writing in nanoseconds 	
 
 
 
 
-	return 0; 
+	return(0); 
 }
 
 
