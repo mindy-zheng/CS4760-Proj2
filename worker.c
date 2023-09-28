@@ -44,7 +44,9 @@ int main(int argc, char **argv) {
 	
 	// Output results
 	printf("WORKER PID: %d PPID: %d SysClockS: %d SysClockNano: %d TermTimeS: %d TermTimeNano: %d\n -- Just Starting", getpid(), getppid(), sys_sec, sys_nano, terminate_sec, terminate_nano); 
-
+	// 
+	shmdt(shm_ptr);
+	shmctl(shm_id, IPC_RMID, NULL); 
 
 	return 0; 
 }
