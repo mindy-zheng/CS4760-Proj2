@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
 	
 	
 	// Launchin worker processes and create child processes: 
-	for (int i = 0; i < simul; i++) {
+	for (int i = 0; i < n+1; i++) {
     		pid_t childPid = fork();
     		if (childPid == 0) { // C
         	// 0 indiciates the child process
@@ -123,20 +123,14 @@ int main(int argc, char **argv) {
 		}
 
 	// Wait for child processes to terminate
-	for (int i = 0; i < simul; i++) {
+	for (int i = 0; i < n+1; i++) {
     		wait(NULL);
 	}	
-	for (int j = 0; j < 20; j++) {
- 		 if (processTable[j].occupied) {
-        	printf("Process ID: %d\n", processTable[j].pid);
-        	printf("Start Time: %d seconds %d nanoseconds\n", processTable[j].startSeconds, processTable[j].startNano);
-   		}
-	}
 	
 	// Iterations 
 	int iteration = 0; 
 	// Writing seconds and nanoseconds into the shared memory location and updating it 
-	while (stillChildrenToLaunch == true) {
+	while (stillChildrenToLaunch == true && simul > 0) {
     		// Updating system clock 
 		sys_nano += NANO_INC;
   		 if (sys_nano >= NANO_SEC) {
@@ -147,30 +141,33 @@ int main(int argc, char **argv) {
     		shm_ptr[0] = sys_sec; // Writing in seconds
     		shm_ptr[1] = sys_nano; // Writing in nanoseconds        
 
-    		//usleep(10000);
 
 		if (sys_nano % HALF_SEC == 0) { // Every half a second of simulated clock time
-        		printf("Process Table:\n");
+			printf("Process Table:\n");
+     		       	printf("Entry \t Occupied \t PID \t StartSec\t StartNano \n"); 
         		for (int i = 0; i < 20; i++) {
-     		       		printf("Process %d: PID %d, Start Time %d.%d\n", i, processTable[i].pid, processTable[i].startSeconds, processTable[i].startNano);
+			printf(" %d \t %d \t\t %d \t\t%d \t\t\t %d \n", i, processTable[i].occupied, processTable[i].pid, processTable[i].startSeconds, processTable[i].startNano);
         		}
     		}
 		iteration++; 
+		if (iteration % (HALF_SEC / NANO_INC) == 0) {
+       			 // Sleep for half a second of real time, or else infinite loop
+        		usleep(HALF_SEC);
+    		}
 
-		if (iteration % (HALF_SEC/ NANO_INC) == 0) {
-			usleep(HALF_SEC);
-		} 
 
    		int status;
     		pid_t pid = waitpid(-1, &status, WNOHANG); // Non-blocking wait() call
     		if (pid > 0) { // Child has terminated
-        		printf("Child process with PID %d has terminated.\n", pid);
         		for (int i = 0; i < 20; i++) {
             			if (processTable[i].pid == pid) {
                 		processTable[i].occupied = 0;
                 		break;
             			}
         		}
+			if (--simul == 0) { 
+				stillChildrenToLaunch = false; 
+			} 
         		if (--simul > 0) { // Launch new child process until simul reaches -s 
 				// Generate random limit between 1 and -t 
 				int random_sec = rand() % timelimit + 1; 
@@ -187,10 +184,9 @@ int main(int argc, char **argv) {
 					perror("Execl() failed"); 
                 			exit(0);  // Only reached if exec() fails.
             			} else if (new_pid > 0) {
-				printf("Parent process has launched a child with PID %d.\n", new_pid);
-                // This is the parent process. Update the process table.
+                		// This is the parent process. Update the process table.
                 		for (int i = 0; i < 20; i++) {
-                    			if (!processTable[i].occupied) {
+                    			if (processTable[i].occupied == 0) {
                         			processTable[i].occupied = 1;
                         			processTable[i].pid = new_pid;
                         			processTable[i].startSeconds = sys_sec;
